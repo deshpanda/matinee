@@ -6,3 +6,8 @@
 // documented trade-off. Without a key, only the demo print works.
 export const BRAND = 'Matinée';
 export const TMDB_KEY = 'a0b334b154b961f2de002723496254be';
+
+// Phase 2: the edge worker (api/ — Rust on Cloudflare Workers). Once deployed,
+// put its URL here (e.g. 'https://matinee-api.yourname.workers.dev') and the
+// landing page grows a username teaser. Empty = hidden.
+export const WORKER_URL = '';

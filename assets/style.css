@@ -536,3 +536,12 @@ ul.printlog li .t { font-family: var(--mono); font-size: .82rem; color: var(--fa
 .demo-link { color: var(--amber); font-family: var(--mono); font-size: .8rem; letter-spacing: .06em; }
 .dev-bar { height: 4px; background: var(--surface-2); border-radius: 2px; overflow: hidden; margin: 18px 0 6px; }
 .dev-bar-fill { height: 100%; width: 0; background: var(--amber); transition: width .3s ease; }
+
+/* ---- the teaser ---- */
+.teaser-row { display: flex; gap: 10px; margin: 14px 0 2px; }
+.teaser-row input {
+  flex: 1; padding: 11px 13px; font-family: var(--mono); font-size: .9rem;
+  color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 6px;
+}
+.teaser-row input:focus { outline: 2px solid var(--amber); border-color: var(--amber); }
+.teaser-panel { text-align: left; margin-top: 8px; }

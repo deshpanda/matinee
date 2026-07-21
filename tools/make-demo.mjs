@@ -7,7 +7,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computeInsights } from '../lib/insights.js';
 import { enrichFilms } from '../lib/enrich.js';
-import { buildShelves } from '../lib/shelves.js';
+import { buildShelves, setImdbSlice } from '../lib/shelves.js';
 import { uniqueFilms } from '../lib/export-parse.js';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -140,6 +140,9 @@ data.generatedAt = '2026-07-18';
 const insights = computeInsights(data);
 console.log(`Insights: ${insights.totals.uniqueFilms} films, ${insights.totals.hours} h.`);
 const syllabus = JSON.parse(readFileSync(join(ROOT, 'data', 'syllabus.json'), 'utf8'));
+if (existsSync(join(ROOT, 'data', 'imdb-slice.json'))) {
+  setImdbSlice(JSON.parse(readFileSync(join(ROOT, 'data', 'imdb-slice.json'), 'utf8')));
+}
 console.log('Building shelves…');
 insights.recs = await buildShelves(data, data.films, syllabus, key,
   (phase, d, t) => { if (d === t) console.log(`  ${phase} done`); });

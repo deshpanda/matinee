@@ -16,7 +16,7 @@ import { enrichFilms } from '../lib/enrich.js';
 import { buildShelves } from '../lib/shelves.js';
 import { computeInsights } from '../lib/insights.js';
 import { kv, tmdbCache, wipeAll } from '../lib/store.js';
-import { TMDB_KEY, BRAND } from './config.js';
+import { TMDB_KEY, BRAND, WORKER_URL } from './config.js';
 
 const PAGE = document.body.dataset.page || 'overview';
 const BASE = PAGE === 'overview' ? '' : '../';
@@ -79,6 +79,34 @@ function renderLanding(message = '') {
   const err = h('p', 'gate-error', message);
   card.appendChild(err);
 
+  // the 30-second teaser — only when the edge worker is deployed
+  if (WORKER_URL) {
+    const tz = h('div', 'teaser-row');
+    const ti = h('input');
+    ti.type = 'text';
+    ti.placeholder = 'or type your Letterboxd username…';
+    ti.setAttribute('aria-label', 'Letterboxd username');
+    const tb = h('button', 'btn', 'Preview');
+    tb.type = 'button';
+    const go = async () => {
+      const u = ti.value.trim().replace(/^@/, '');
+      if (!u) return;
+      tb.textContent = '…';
+      try {
+        const films = await fetch(`${WORKER_URL}/teaser/${encodeURIComponent(u)}`).then((r) => {
+          if (!r.ok) throw new Error(r.status === 404 ? 'No such member.' : 'Preview unavailable right now.');
+          return r.json();
+        });
+        renderTeaser(u, films);
+      } catch (e2) { err.textContent = e2.message; tb.textContent = 'Preview'; }
+    };
+    tb.addEventListener('click', go);
+    ti.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    tz.appendChild(ti);
+    tz.appendChild(tb);
+    card.appendChild(tz);
+  }
+
   const demoRow = h('p', 'gate-note');
   const demoBtn = h('a', 'demo-link', 'or walk through a demo print first');
   demoBtn.href = '#demo';
@@ -99,6 +127,43 @@ function renderLanding(message = '') {
     'Nothing leaves this machine. Your files are read in this tab, film artwork and ratings are fetched '
     + 'by your browser from TMDB, and the result is stored only in this browser. There is no server. '
     + 'No account. We could not see your data if we wanted to.'));
+  gate.appendChild(card);
+  root.appendChild(gate);
+}
+
+// The teaser: last ~50 films from the public RSS feed, then the pitch.
+function renderTeaser(user, films) {
+  root.innerHTML = '';
+  const gate = h('div', 'gate');
+  const card = h('div', 'gate-card gate-wide');
+  card.appendChild(h('div', 'reel', '● ● ●'));
+  card.appendChild(h('h1', null, 'The trailer'));
+  const rated = films.filter((f) => f.rating);
+  const avg = rated.length ? (rated.reduce((s, f) => s + f.rating, 0) / rated.length).toFixed(2) : null;
+  card.appendChild(h('p', 'tag',
+    `${films.length} recent films${avg ? ` · you average ${avg}★` : ''}`));
+  const panel = h('div', 'panel teaser-panel');
+  const ul = h('ul', 'diary');
+  for (const f of films.slice(0, 10)) {
+    const li = h('li');
+    li.appendChild(h('span', 'd', f.watched));
+    const t = h('span', 't', f.title + ' ');
+    t.appendChild(h('span', 'y', `(${f.year})`));
+    li.appendChild(t);
+    if (f.rating) li.appendChild(h('span', 'stars', stars(f.rating)));
+    ul.appendChild(li);
+  }
+  panel.appendChild(ul);
+  card.appendChild(panel);
+  card.appendChild(h('p', 'gate-note',
+    'That is everything the public feed knows — your last handful of films. The full picture — '
+    + 'every year, every rating, the map, the transcript — develops from your export, right here in your browser.'));
+  const back = h('a', 'demo-link', 'drop your export →');
+  back.href = '#';
+  back.addEventListener('click', (e) => { e.preventDefault(); renderLanding(); });
+  const p = h('p', 'gate-note');
+  p.appendChild(back);
+  card.appendChild(p);
   gate.appendChild(card);
   root.appendChild(gate);
 }
@@ -125,6 +190,8 @@ async function develop(files) {
     stage('Computing your insights\u2026', 0.75);
     const insights = computeInsights(data);
     stage('Grading your film-school transcript\u2026', 0.8);
+    const { loadImdbSlice } = await import('../lib/shelves.js');
+    await loadImdbSlice(BASE);
     const syllabus = await fetch(BASE + 'data/syllabus.json').then((r) => r.json());
     insights.recs = await buildShelves(data, data.films, syllabus, TMDB_KEY,
       (phase, d, t) => stage(`Cutting the ${phase} reel \u2014 ${d}/${t}`, 0.8 + (d / t) * 0.19));

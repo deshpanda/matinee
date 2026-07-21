@@ -1,0 +1,32 @@
+name: weekly imdb slice
+on:
+  schedule:
+    - cron: '41 3 * * 1'   # Mondays 03:41 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  slice:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: pipeline/go.sum
+      - name: build the slice
+        working-directory: pipeline
+        run: go run . -out ../data/imdb-slice.json
+      - name: commit if changed
+        run: |
+          if ! git diff --quiet data/imdb-slice.json; then
+            git config user.name "projectionist"
+            git config user.email "actions@users.noreply.github.com"
+            git add data/imdb-slice.json
+            git commit -m "Weekly IMDb slice"
+            git push
+          else
+            echo "slice unchanged"
+          fi
