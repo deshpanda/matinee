@@ -1,14 +1,17 @@
-name: weekly imdb slice
+name: weekly data refresh
 on:
   schedule:
     - cron: '41 3 * * 1'   # Mondays 03:41 UTC
   workflow_dispatch:
+  push:                     # TEMPORARY smoke-test trigger — remove after first green run
+    branches: [main]
+    paths: ['.github/workflows/imdb-slice.yml']
 
 permissions:
   contents: write
 
 jobs:
-  slice:
+  refresh:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -16,17 +19,25 @@ jobs:
         with:
           go-version: '1.24'
           cache-dependency-path: pipeline/go.sum
-      - name: build the slice
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: cut the imdb slice
         working-directory: pipeline
         run: go run . -out ../data/imdb-slice.json
+      - name: refresh the syllabus (posters and crowd ratings drift)
+        run: |
+          # the key already ships to browsers via config.js — same key, same exposure
+          export TMDB_KEY=$(node -e "import('./assets/config.js').then(c => console.log(c.TMDB_KEY))")
+          node tools/make-syllabus.mjs
       - name: commit if changed
         run: |
-          if ! git diff --quiet data/imdb-slice.json; then
+          git add data/imdb-slice.json data/syllabus.json
+          if ! git diff --cached --quiet; then
             git config user.name "projectionist"
             git config user.email "actions@users.noreply.github.com"
-            git add data/imdb-slice.json
-            git commit -m "Weekly IMDb slice"
+            git commit -m "Weekly data refresh"
             git push
           else
-            echo "slice unchanged"
+            echo "nothing changed"
           fi
