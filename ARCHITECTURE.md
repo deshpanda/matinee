@@ -38,7 +38,7 @@ Build-time tools (Node, run by a maintainer, output committed):
   `data/imdb-slice.json` (~1.2 MB, ~30k films). The browser joins it locally
   — an IMDb second opinion on every shelf, and a smarter quality floor.
 
-### `api/` — Rust on Cloudflare Workers (built + CI-checked; deploy needs a CF account)
+### `api/` — Rust on Cloudflare Workers (deployed; free tier)
 - `GET /teaser/:username` — fetches the public Letterboxd RSS feed
   (last ~50 films), normalizes it, caches at the edge. Powers the landing-page
   hook: type a username, see a 30-second preview, then be sold on the full
