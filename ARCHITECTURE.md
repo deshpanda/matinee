@@ -28,21 +28,27 @@ Build-time tools (Node, run by a maintainer, output committed):
 - `tools/make-demo.mjs` — develops the fictional demo print.
 - `tools/make-worldmap.mjs` — Natural Earth GeoJSON → SVG country paths.
 
-## Phase 2 — planned: the edges
+## Phase 2 — the edges
 
-### `api/` — Rust on Cloudflare Workers (free tier)
+### `pipeline/` — Go in GitHub Actions (shipped; zero hosting)
+- Weekly job (`.github/workflows/imdb-slice.yml`): streams IMDb's
+  `title.ratings` + `title.basics` datasets, keeps movies with ≥2500 votes,
+  keys them `normalized-title|year` under both primary and original titles
+  (the front-end's `normTitle` is mirrored exactly), and commits
+  `data/imdb-slice.json` (~1.2 MB, ~30k films). The browser joins it locally
+  — an IMDb second opinion on every shelf, and a smarter quality floor.
+
+### `api/` — Rust on Cloudflare Workers (built + CI-checked; deploy needs a CF account)
 - `GET /teaser/:username` — fetches the public Letterboxd RSS feed
   (last ~50 films), normalizes it, caches at the edge. Powers the landing-page
   hook: type a username, see a 30-second preview, then be sold on the full
   export. The worker exists because browsers can't read the feed directly
   (no CORS) — it holds no state and sees no export data.
 - `GET /tmdb/*` — a caching proxy so the TMDB key stops shipping to browsers.
-
-### `pipeline/` — Go in GitHub Actions (zero hosting)
-- Weekly job: download IMDb's `title.ratings.tsv.gz` (25 MB), prune to
-  films with ≥1000 votes, emit `data/imdb-slice.json` (~2 MB) the browser can
-  join against — an IMDb second opinion on every shelf and syllabus film.
-- Refreshes `data/syllabus.json` so posters and crowd ratings never rot.
+- Deploy: `cd api && npx wrangler deploy`, then `wrangler secret put TMDB_KEY`
+  and set `WORKER_URL` in `assets/config.js`. The deploy command compiles the
+  worker and uploads it to Cloudflare's edge — it runs on their network,
+  not on the machine that deployed it.
 
 ### Explicit non-goals
 - No accounts, no database, no server-side storage of viewer data — ever.

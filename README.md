@@ -38,7 +38,7 @@ cinephile's finished dashboard — so you can walk every room first.
 | --- | --- |
 | **Overview** | The hero numbers, the year-by-year heatmap reel, last screenings, and rating-tier poster walls |
 | **Stats** | Habits, taste, the map of world cinema, the century strip, terra incognita, verdicts, years in review |
-| **Next** | Recommendation shelves weighted by your own ratings — because-you-loved, short reels, the long haul, unmet masters, the canon board |
+| **Next** | Recommendation shelves weighted by your own ratings — because-you-loved, short reels, the long haul, unmet masters, the canon board — with TMDB and IMDb ratings on every card |
 | **School** | A 31-course film school (BA + MFA) graded from your ratings: transcript, GPA, dean's list, the seminar room's method and vocabulary |
 | **Archive** | The full ledger, searchable, beside the margins — your own reviews |
 
@@ -57,12 +57,26 @@ TMDB_KEY=... node tools/make-demo.mjs       # the demo print
 `node --test` covers the engine: CSV parsing, the insights math, the
 recommendation ranker, the transcript grader.
 
-## Roadmap
+## The edges
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) — phase 2 adds a Rust edge worker
-(instant RSS-based teaser from just a username, TMDB key kept server-side)
-and a Go data pipeline (weekly IMDb ratings slice for a second opinion on
-every shelf).
+Two small pieces live outside the browser — neither ever sees viewer data
+(details in [ARCHITECTURE.md](ARCHITECTURE.md)):
+
+- **`pipeline/` — Go.** Prunes IMDb's non-commercial datasets to a 1.2 MB
+  slice ([`data/imdb-slice.json`](data/imdb-slice.json)) that the browser
+  joins locally, so every shelf carries an IMDb second opinion. A GitHub
+  Action re-cuts it weekly; nothing to host.
+- **`api/` — Rust on Cloudflare Workers.** The username teaser
+  (`/teaser/:user` — Letterboxd's public RSS has no CORS, so the landing-page
+  preview needs one hop) and a TMDB key proxy. Deploy with
+  `npx wrangler deploy` from `api/`, set the secret with
+  `wrangler secret put TMDB_KEY`, then point `WORKER_URL` in
+  [`assets/config.js`](assets/config.js) at it — the landing page grows the
+  preview box on its own.
+
+CI (`.github/workflows/checks.yml`) runs the Node test suite, vets and
+builds the Go, and `cargo check`s the worker against the wasm target on
+every push.
 
 ---
 
