@@ -96,10 +96,23 @@ async fn tmdb_proxy(req: &Request, path: &str, key: &str) -> Result<Response> {
         .map(|q| format!("{q}&"))
         .unwrap_or_default();
     let url = format!("https://api.themoviedb.org/3/{path}?{query}api_key={key}");
-    let upstream = Fetch::Url(url.parse().map_err(|_| Error::from("bad url"))?)
+    let mut init = RequestInit::new();
+    let headers = Headers::new();
+    headers.set("Accept", "application/json")?;
+    headers.set(
+        "User-Agent",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
+    )?;
+    init.with_method(Method::Get).with_headers(headers);
+    let mut upstream = Fetch::Request(Request::new_with_init(&url, &init)?)
         .send()
         .await?;
-    cors(upstream, 86_400)
+    // upstream responses carry immutable headers — rebuild before decorating
+    let status = upstream.status_code();
+    let body = upstream.bytes().await?;
+    let resp = Response::from_bytes(body)?.with_status(status);
+    resp.headers().set("Content-Type", "application/json")?;
+    cors(resp, 86_400)
 }
 
 /// First occurrence of `<name>…</name>`, entity-decoded just enough for titles.
