@@ -3,9 +3,6 @@ on:
   schedule:
     - cron: '41 3 * * 1'   # Mondays 03:41 UTC
   workflow_dispatch:
-  push:                     # TEMPORARY smoke-test trigger — remove after first green run
-    branches: [main]
-    paths: ['.github/workflows/imdb-slice.yml']
 
 permissions:
   contents: write
