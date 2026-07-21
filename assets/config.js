@@ -5,4 +5,4 @@
 // any time). Until phase 2 puts the key behind the edge worker, this is the
 // documented trade-off. Without a key, only the demo print works.
 export const BRAND = 'Matinée';
-export const TMDB_KEY = 'REPLACE_WITH_TMDB_KEY';
+export const TMDB_KEY = 'a0b334b154b961f2de002723496254be';
