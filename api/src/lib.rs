@@ -54,7 +54,7 @@ async fn teaser(user: &str) -> Result<Response> {
     }
     let url = format!("https://letterboxd.com/{}/rss/", user.to_lowercase());
     let mut init = RequestInit::new();
-    let headers = Headers::new();
+    let mut headers = Headers::new();
     // the feed 403s non-browser user agents
     headers.set(
         "User-Agent",
