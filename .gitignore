@@ -1,3 +1,5 @@
 tools/.demo-cache.json
 node_modules/
 .DS_Store
+api/target/
+api/build/
