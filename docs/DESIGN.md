@@ -8,12 +8,12 @@ infrastructure we run.**
 
 ```mermaid
 flowchart LR
-    subgraph viewer's browser
+    subgraph B["viewer's browser"]
         L[landing / darkroom] --> E[engine<br/>parse → enrich → insights → shelves]
         E --> IDB[(IndexedDB<br/>the print)]
         IDB --> P[five pages<br/>overview · stats · next · school · archive]
     end
-    subgraph our infrastructure — sees no viewer data
+    subgraph I["our infrastructure — sees no viewer data"]
         W[Rust worker<br/>Cloudflare edge]
         GH[GitHub Pages<br/>static assets + weekly data]
     end
