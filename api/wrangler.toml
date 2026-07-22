@@ -9,3 +9,7 @@ command = "cargo install -q worker-build && worker-build --release"
 
 [vars]
 ACCOUNT_ID = "d7c14e4d5bcf1d69993b6631572c3991"
+
+[[kv_namespaces]]
+binding = "COUNTERS"
+id = "9477fc8c0ff043289ab238c17e49659e"

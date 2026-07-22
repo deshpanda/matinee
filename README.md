@@ -2,6 +2,9 @@
 
 [![checks](https://github.com/deshpanda/matinee/actions/workflows/checks.yml/badge.svg)](https://github.com/deshpanda/matinee/actions/workflows/checks.yml)
 [![edge usage](https://img.shields.io/endpoint?url=https%3A%2F%2Fmatinee-api.samyakd-2001.workers.dev%2Fbadge)](docs/DESIGN.md)
+[![films developed](https://img.shields.io/endpoint?url=https%3A%2F%2Fmatinee-api.samyakd-2001.workers.dev%2Fbadge%3Fmetric%3Ddevelops)](docs/DESIGN.md)
+[![weekly data](https://img.shields.io/endpoint?url=https%3A%2F%2Fmatinee-api.samyakd-2001.workers.dev%2Fbadge%3Fmetric%3Ddata)](https://github.com/deshpanda/matinee/actions/workflows/imdb-slice.yml)
+[![stars](https://img.shields.io/github/stars/deshpanda/matinee?style=flat&color=e6a648)](https://github.com/deshpanda/matinee/stargazers)
 
 **Your film life, developed in your browser.**
 
@@ -12,9 +15,10 @@ transcript graded from your own ratings — all computed **inside your
 browser**, stored **only in your browser**.
 
 There is no server. No account. No analytics. We could not see your data if
-we wanted to. (The badge above counts anonymous requests at the edge — the
-only usage signal that exists, and by construction it can't know who you
-are.)
+we wanted to. (The badges above are the entire telemetry story: anonymous
+request counts at the edge, plus one empty ping when a develop completes so
+the counter can exist — it carries no body and no identifier. That is
+everything, and by construction none of it can know who you are.)
 
 ## How it works
 

@@ -34,15 +34,48 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let key = ctx.secret("TMDB_KEY")?.to_string();
             tmdb_proxy(&req, &path, &key).await
         })
-        .get_async("/badge", |_req, ctx| async move {
-            // a shields.io endpoint badge: this worker's own 7-day request
-            // count, straight from Cloudflare analytics. Anonymous by
-            // construction — it can only count what the edge counts.
-            let account = ctx.var("ACCOUNT_ID")?.to_string();
-            match ctx.secret("CF_ANALYTICS_TOKEN") {
-                Ok(token) => usage_badge(&account, &token.to_string()).await,
-                Err(_) => badge("edge · 7 days", "token not set", "6b6252"),
+        .get_async("/badge", |req, ctx| async move {
+            // shields.io endpoint badges. ?metric= selects one; all of them
+            // are anonymous by construction — the edge can only count.
+            let metric = req
+                .url()?
+                .query_pairs()
+                .find(|(k, _)| k == "metric")
+                .map(|(_, v)| v.to_string())
+                .unwrap_or_default();
+            match metric.as_str() {
+                "develops" => {
+                    let n = ctx
+                        .kv("COUNTERS")?
+                        .get("develops")
+                        .text()
+                        .await?
+                        .and_then(|s| s.parse::<u64>().ok())
+                        .unwrap_or(0);
+                    badge("films developed", &humanize(n), "e6a648")
+                }
+                "data" => data_freshness_badge().await,
+                _ => {
+                    let account = ctx.var("ACCOUNT_ID")?.to_string();
+                    match ctx.secret("CF_ANALYTICS_TOKEN") {
+                        Ok(token) => usage_badge(&account, &token.to_string()).await,
+                        Err(_) => badge("edge · 7 days", "token not set", "6b6252"),
+                    }
+                }
             }
+        })
+        .post_async("/fin", |_req, ctx| async move {
+            // one empty ping when a develop completes — the counter's whole
+            // datasource. No body, no id, nothing to store but the count.
+            let kv = ctx.kv("COUNTERS")?;
+            let n = kv
+                .get("develops")
+                .text()
+                .await?
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(0);
+            kv.put("develops", (n + 1).to_string())?.execute().await?;
+            cors(Response::empty()?.with_status(204), 0)
         })
         .run(req, env)
         .await
@@ -166,6 +199,49 @@ async fn usage_badge(account: &str, token: &str) -> Result<Response> {
         }
         None => badge("edge · 7 days", "unavailable", "6b6252"),
     }
+}
+
+async fn data_freshness_badge() -> Result<Response> {
+    let mut init = RequestInit::new();
+    let headers = Headers::new();
+    headers.set("User-Agent", "matinee-badge")?;
+    headers.set("Accept", "application/vnd.github+json")?;
+    init.with_method(Method::Get).with_headers(headers);
+    let mut resp = Fetch::Request(Request::new_with_init(
+        "https://api.github.com/repos/deshpanda/matinee/commits?path=data/imdb-slice.json&per_page=1",
+        &init,
+    )?)
+    .send()
+    .await?;
+    let v: serde_json::Value = resp.json().await.unwrap_or_default();
+    let date = v[0]["commit"]["committer"]["date"].as_str().unwrap_or("");
+    if date.len() < 10 {
+        return badge("weekly data", "unavailable", "6b6252");
+    }
+    // days-ago from two ISO dates, epoch-day math again
+    let then_days = days_from_civil(&date[..10]);
+    let now_days = (Date::now().as_millis() / 86_400_000) as i64;
+    let ago = (now_days - then_days).max(0);
+    let msg = match ago {
+        0 => "refreshed today".to_string(),
+        1 => "refreshed yesterday".to_string(),
+        n => format!("refreshed {n} days ago"),
+    };
+    badge("weekly data", &msg, if ago <= 8 { "e6a648" } else { "c8442e" })
+}
+
+/// "YYYY-MM-DD" → days since the Unix epoch (inverse of iso_date).
+fn days_from_civil(s: &str) -> i64 {
+    let y: i64 = s[..4].parse().unwrap_or(1970);
+    let m: i64 = s[5..7].parse().unwrap_or(1);
+    let d: i64 = s[8..10].parse().unwrap_or(1);
+    let y = if m <= 2 { y - 1 } else { y };
+    let era = y.div_euclid(400);
+    let yoe = y - era * 400;
+    let mp = if m > 2 { m - 3 } else { m + 9 };
+    let doy = (153 * mp + 2) / 5 + d - 1;
+    let doe = yoe * 365 + yoe / 4 - yoe / 100 + doy;
+    era * 146_097 + doe - 719_468
 }
 
 fn humanize(n: u64) -> String {

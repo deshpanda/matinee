@@ -201,6 +201,11 @@ async function develop(files) {
     insights.recs = await buildShelves(data, data.films, syllabus, TMDB_KEY,
       (phase, d, t) => stage(`Cutting the ${phase} reel \u2014 ${d}/${t}`, 0.8 + (d / t) * 0.19));
     await kv.put('vault', insights);
+    // one empty ping — "a develop finished", nothing else. It carries no
+    // body and no identifier; it exists so the counter on the README can.
+    if (WORKER_URL) {
+      try { navigator.sendBeacon(`${WORKER_URL}/fin`); } catch { /* the count survives missing one */ }
+    }
     stage('Done.', 1);
     renderPage(insights);
   } catch (e) {

@@ -113,6 +113,9 @@ byte-for-byte in the Go pipeline.
 | `GET /teaser/:user` | `letterboxd.com/{user}/rss/` | username whitelist `[A-Za-z0-9_-]{1,32}`; browser UA (the feed 403s bots); hand-rolled tag extraction — no XML dep; 404 mapped to "no such member" |
 | `GET /tmdb/*` | `api.themoviedb.org/3/*` | query passthrough + `api_key` from secret; browser UA (header-less edge fetches get CF error 1042); upstream headers are immutable → response rebuilt before CORS decoration |
 | `GET /badge` | Cloudflare GraphQL analytics | shields.io endpoint JSON with 7-day request count; needs the `CF_ANALYTICS_TOKEN` secret, degrades to a "no token" badge without it |
+| `GET /badge?metric=develops` | Workers KV | all-time develop counter, fed by `/fin` |
+| `GET /badge?metric=data` | GitHub commits API | freshness of `data/imdb-slice.json`; turns red past 8 days |
+| `POST /fin` | Workers KV | one empty ping per completed develop — increments the counter, stores nothing else |
 
 All responses: `Access-Control-Allow-Origin: *`, `s-maxage` 6 h (teaser) /
 24 h (tmdb) / 1 h (badge). Secrets: `TMDB_KEY`, `CF_ANALYTICS_TOKEN`
