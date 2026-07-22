@@ -34,6 +34,16 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
             let key = ctx.secret("TMDB_KEY")?.to_string();
             tmdb_proxy(&req, &path, &key).await
         })
+        .get_async("/badge", |_req, ctx| async move {
+            // a shields.io endpoint badge: this worker's own 7-day request
+            // count, straight from Cloudflare analytics. Anonymous by
+            // construction — it can only count what the edge counts.
+            let account = ctx.var("ACCOUNT_ID")?.to_string();
+            match ctx.secret("CF_ANALYTICS_TOKEN") {
+                Ok(token) => usage_badge(&account, &token.to_string()).await,
+                Err(_) => badge("edge · 7 days", "token not set", "6b6252"),
+            }
+        })
         .run(req, env)
         .await
 }
@@ -113,6 +123,68 @@ async fn tmdb_proxy(req: &Request, path: &str, key: &str) -> Result<Response> {
     let resp = Response::from_bytes(body)?.with_status(status);
     resp.headers().set("Content-Type", "application/json")?;
     cors(resp, 86_400)
+}
+
+fn badge(label: &str, message: &str, color: &str) -> Result<Response> {
+    let resp = Response::from_json(&serde_json::json!({
+        "schemaVersion": 1, "label": label, "message": message, "color": color,
+    }))?;
+    cors(resp, 3600)
+}
+
+async fn usage_badge(account: &str, token: &str) -> Result<Response> {
+    // seven days back, ISO — epoch day math keeps chrono out of the build
+    let now_ms = Date::now().as_millis();
+    let since_days = (now_ms / 86_400_000).saturating_sub(7);
+    let since = iso_date(since_days);
+    let query = serde_json::json!({
+        "query": format!(
+            "query {{ viewer {{ accounts(filter: {{accountTag: \"{account}\"}}) \
+             {{ workersInvocationsAdaptive(limit: 1000, filter: {{scriptName: \"matinee-api\", date_geq: \"{since}\"}}) \
+             {{ sum {{ requests }} }} }} }} }}"
+        ),
+    });
+    let mut init = RequestInit::new();
+    let headers = Headers::new();
+    headers.set("Authorization", &format!("Bearer {token}"))?;
+    headers.set("Content-Type", "application/json")?;
+    init.with_method(Method::Post)
+        .with_headers(headers)
+        .with_body(Some(query.to_string().into()));
+    let mut resp = Fetch::Request(Request::new_with_init(
+        "https://api.cloudflare.com/client/v4/graphql",
+        &init,
+    )?)
+    .send()
+    .await?;
+    let v: serde_json::Value = resp.json().await.unwrap_or_default();
+    let rows = v["data"]["viewer"]["accounts"][0]["workersInvocationsAdaptive"].as_array();
+    match rows {
+        Some(rows) => {
+            let total: u64 = rows.iter().filter_map(|r| r["sum"]["requests"].as_u64()).sum();
+            badge("edge · 7 days", &format!("{} requests", humanize(total)), "e6a648")
+        }
+        None => badge("edge · 7 days", "unavailable", "6b6252"),
+    }
+}
+
+fn humanize(n: u64) -> String {
+    if n >= 10_000 { format!("{:.1}k", n as f64 / 1000.0) } else { n.to_string() }
+}
+
+/// Days since the Unix epoch → YYYY-MM-DD (civil-from-days, Hinnant's algorithm).
+fn iso_date(days: u64) -> String {
+    let z = days as i64 + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 };
+    let y = if m <= 2 { y + 1 } else { y };
+    format!("{y:04}-{m:02}-{d:02}")
 }
 
 /// First occurrence of `<name>…</name>`, entity-decoded just enough for titles.

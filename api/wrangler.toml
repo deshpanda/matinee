@@ -6,3 +6,6 @@ compatibility_date = "2026-07-01"
 
 [build]
 command = "cargo install -q worker-build && worker-build --release"
+
+[vars]
+ACCOUNT_ID = "d7c14e4d5bcf1d69993b6631572c3991"

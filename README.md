@@ -1,5 +1,8 @@
 # Matinée
 
+[![checks](https://github.com/deshpanda/matinee/actions/workflows/checks.yml/badge.svg)](https://github.com/deshpanda/matinee/actions/workflows/checks.yml)
+[![edge usage](https://img.shields.io/endpoint?url=https%3A%2F%2Fmatinee-api.samyakd-2001.workers.dev%2Fbadge)](docs/DESIGN.md)
+
 **Your film life, developed in your browser.**
 
 Drop your Letterboxd export onto the page and Matinée develops the whole
@@ -9,7 +12,9 @@ transcript graded from your own ratings — all computed **inside your
 browser**, stored **only in your browser**.
 
 There is no server. No account. No analytics. We could not see your data if
-we wanted to.
+we wanted to. (The badge above counts anonymous requests at the edge — the
+only usage signal that exists, and by construction it can't know who you
+are.)
 
 ## How it works
 
@@ -62,7 +67,7 @@ recommendation ranker, the transcript grader.
 ## The edges
 
 Two small pieces live outside the browser — neither ever sees viewer data
-(details in [ARCHITECTURE.md](ARCHITECTURE.md)):
+(principles in [ARCHITECTURE.md](ARCHITECTURE.md), full HLD/LLD with diagrams in [docs/DESIGN.md](docs/DESIGN.md)):
 
 - **`pipeline/` — Go.** Prunes IMDb's non-commercial datasets to a 1.2 MB
   slice ([`data/imdb-slice.json`](data/imdb-slice.json)) that the browser
