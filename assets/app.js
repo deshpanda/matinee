@@ -16,7 +16,12 @@ import { enrichFilms } from '../lib/enrich.js';
 import { buildShelves } from '../lib/shelves.js';
 import { computeInsights } from '../lib/insights.js';
 import { kv, tmdbCache, wipeAll } from '../lib/store.js';
+import { setTmdbBase } from '../lib/tmdb.js';
 import { TMDB_KEY, BRAND, WORKER_URL } from './config.js';
+
+// With the worker deployed, all TMDB traffic goes through its proxy: the key
+// stays server-side and the browser sends anonymous film lookups only.
+if (WORKER_URL) setTmdbBase(`${WORKER_URL}/tmdb`);
 
 const PAGE = document.body.dataset.page || 'overview';
 const BASE = PAGE === 'overview' ? '' : '../';
@@ -171,8 +176,8 @@ function renderTeaser(user, films) {
 // The darkroom: files in, dashboard out — with the process narrated.
 async function develop(files) {
   if (!files.length) return;
-  if (!TMDB_KEY || TMDB_KEY === 'REPLACE_WITH_TMDB_KEY') {
-    renderLanding('This deployment has no TMDB key configured yet \u2014 try the demo below.');
+  if (!WORKER_URL && (!TMDB_KEY || TMDB_KEY === 'REPLACE_WITH_TMDB_KEY')) {
+    renderLanding('This deployment has no TMDB key or worker configured yet \u2014 try the demo below.');
     return;
   }
   const stage = renderDarkroom();

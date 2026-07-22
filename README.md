@@ -70,7 +70,9 @@ Two small pieces live outside the browser — neither ever sees viewer data
   Action re-cuts it weekly; nothing to host.
 - **`api/` — Rust on Cloudflare Workers.** The username teaser
   (`/teaser/:user` — Letterboxd's public RSS has no CORS, so the landing-page
-  preview needs one hop) and a TMDB key proxy. It holds no state and never
+  preview needs one hop) and the TMDB proxy every film lookup goes through —
+  the key stays server-side, and the worker sees anonymous "give me movie
+  #550" requests it cannot connect to anyone. It holds no state and never
   sees export data. Forks deploy their own with `npx wrangler deploy` from
   `api/`, set the secret with `wrangler secret put TMDB_KEY`, and point
   `WORKER_URL` in [`assets/config.js`](assets/config.js) at it — the landing
