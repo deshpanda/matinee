@@ -54,7 +54,7 @@ async fn fetch(req: Request, env: Env, _ctx: Context) -> Result<Response> {
                         .unwrap_or(0);
                     badge("films developed", &humanize(n), "e6a648")
                 }
-                "data" => data_freshness_badge().await,
+                "data" => data_freshness_badge(&ctx).await,
                 _ => {
                     let account = ctx.var("ACCOUNT_ID")?.to_string();
                     match ctx.secret("CF_ANALYTICS_TOKEN") {
@@ -201,33 +201,74 @@ async fn usage_badge(account: &str, token: &str) -> Result<Response> {
     }
 }
 
-async fn data_freshness_badge() -> Result<Response> {
-    let mut init = RequestInit::new();
-    let headers = Headers::new();
-    headers.set("User-Agent", "matinee-badge")?;
-    headers.set("Accept", "application/vnd.github+json")?;
-    init.with_method(Method::Get).with_headers(headers);
-    let mut resp = Fetch::Request(Request::new_with_init(
-        "https://api.github.com/repos/deshpanda/matinee/commits?path=data/imdb-slice.json&per_page=1",
-        &init,
-    )?)
-    .send()
-    .await?;
-    let v: serde_json::Value = resp.json().await.unwrap_or_default();
-    let date = v[0]["commit"]["committer"]["date"].as_str().unwrap_or("");
-    if date.len() < 10 {
-        return badge("weekly data", "unavailable", "6b6252");
-    }
-    // days-ago from two ISO dates, epoch-day math again
-    let then_days = days_from_civil(&date[..10]);
+// GitHub's anonymous API rate limit is shared across Cloudflare egress IPs,
+// so lookups WILL flake — the last good answer lives in KV and stands in.
+async fn data_freshness_badge(ctx: &RouteContext<()>) -> Result<Response> {
+    let kv = ctx.kv("COUNTERS")?;
     let now_days = (Date::now().as_millis() / 86_400_000) as i64;
-    let ago = (now_days - then_days).max(0);
+    if let Some(cached) = kv.get("data-freshness").text().await? {
+        // "fetched_day|commit_day" — refetch at most once a day
+        if let Some((fetched, commit)) = parse_cached(&cached) {
+            if fetched == now_days {
+                return freshness_response(now_days - commit);
+            }
+        }
+    }
+    match fetch_slice_commit_day().await {
+        Some(commit_day) => {
+            kv.put("data-freshness", format!("{now_days}|{commit_day}"))?
+                .execute()
+                .await?;
+            freshness_response(now_days - commit_day)
+        }
+        None => {
+            // rate-limited: serve the stale answer if there is one
+            if let Some(cached) = kv.get("data-freshness").text().await? {
+                if let Some((_, commit)) = parse_cached(&cached) {
+                    return freshness_response(now_days - commit);
+                }
+            }
+            badge("weekly data", "unavailable", "6b6252")
+        }
+    }
+}
+
+fn parse_cached(s: &str) -> Option<(i64, i64)> {
+    let (a, b) = s.split_once('|')?;
+    Some((a.parse().ok()?, b.parse().ok()?))
+}
+
+fn freshness_response(ago: i64) -> Result<Response> {
+    let ago = ago.max(0);
     let msg = match ago {
         0 => "refreshed today".to_string(),
         1 => "refreshed yesterday".to_string(),
         n => format!("refreshed {n} days ago"),
     };
     badge("weekly data", &msg, if ago <= 8 { "e6a648" } else { "c8442e" })
+}
+
+async fn fetch_slice_commit_day() -> Option<i64> {
+    let mut init = RequestInit::new();
+    let headers = Headers::new();
+    headers.set("User-Agent", "matinee-badge").ok()?;
+    headers.set("Accept", "application/vnd.github+json").ok()?;
+    init.with_method(Method::Get).with_headers(headers);
+    let req = Request::new_with_init(
+        "https://api.github.com/repos/deshpanda/matinee/commits?path=data/imdb-slice.json&per_page=1",
+        &init,
+    )
+    .ok()?;
+    let mut resp = Fetch::Request(req).send().await.ok()?;
+    if resp.status_code() != 200 {
+        return None;
+    }
+    let v: serde_json::Value = resp.json().await.ok()?;
+    let date = v[0]["commit"]["committer"]["date"].as_str()?;
+    if date.len() < 10 {
+        return None;
+    }
+    Some(days_from_civil(&date[..10]))
 }
 
 /// "YYYY-MM-DD" → days since the Unix epoch (inverse of iso_date).
