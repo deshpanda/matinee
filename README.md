@@ -6,6 +6,8 @@
 
 **Your film life, developed in your browser.**
 
+![Matinée developing a print](media/matinee-teaser.gif)
+
 Drop your Letterboxd export onto the page and Matinée develops the whole
 print locally: watching stats, poster walls, a world map of your cinema, a
 century timeline, taste-weighted recommendations, and a four-year film-school
@@ -50,6 +52,44 @@ room first.
 | **Next** | Recommendation shelves weighted by your own ratings — because-you-loved, short reels, the long haul, unmet masters, the canon board — with TMDB and IMDb ratings on every card |
 | **School** | A 31-course film school (BA + MFA) graded from your ratings: transcript, GPA, dean's list, the seminar room's method and vocabulary |
 | **Archive** | The full ledger, searchable, beside the margins — your own reviews |
+
+## Press kit
+
+Ready-made assets for posts and write-ups, all recorded from the live site with
+the demo print (no personal data on screen). Click through, then use the raw
+download button on the file page.
+
+| File | What it is | Use it for |
+| --- | --- | --- |
+| [matinee-walkthrough.mp4](media/matinee-walkthrough.mp4) | 63 second silent walkthrough, 1280x800, captioned | link posts, YouTube, embeds |
+| [matinee-square.mp4](media/matinee-square.mp4) | the same cut, 1080x1080 letterboxed | feeds that crop wide video |
+| [matinee-teaser.gif](media/matinee-teaser.gif) | 12 seconds of the develop, 2 MB | inline embeds, comment replies |
+| [still-transcript.png](media/still-transcript.png) | the film school transcript | the single best still: it shows a GPA |
+| [still-map.png](media/still-map.png) | the map of world cinema | |
+| [still-recommendations.png](media/still-recommendations.png) | the recommendation shelves | |
+| [card-intro.png](media/card-intro.png) / [card-outro.png](media/card-outro.png) | the title cards | thumbnails, banners |
+| [assets/og.png](assets/og.png) | 1200x630 Open Graph card | link previews |
+
+The walkthrough is deliberately silent: most feeds autoplay muted and the
+captions carry it. Add music in any editor if a platform wants sound.
+
+### Re-cutting it
+
+The whole film is reproducible from the live site, so it can be refreshed
+whenever the UI changes:
+
+```bash
+cd tools/video
+npm install playwright        # uses a cached Chromium if you have one
+node record.mjs               # drives the live site, writes out/ + timeline.json
+node cards.mjs                # renders title cards and captions in the site's own CSS
+./cut.sh                      # assembles mp4 + square + gif into dist/
+```
+
+`record.mjs` holds the scene list and the pacing; `cards.mjs` holds the caption
+copy; `cut.sh` holds the speed (`SPEED=1.35`) and caption dwell time. Captions
+are timed from the marks the recorder writes, so changing the route through the
+site does not desynchronise them. Requires `ffmpeg` on PATH for the cut step.
 
 ## Deploying your own
 
