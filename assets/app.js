@@ -290,7 +290,8 @@ function masthead(v) {
 function credits() {
   const foot = h('footer', 'credits');
   foot.innerHTML =
-    'Matinée runs entirely in your browser — your data never leaves this machine<br>' +
+    'Matinée runs entirely in your browser — your data never leaves this machine · ' +
+    '<a href="' + BASE + 'notes/">how it is built</a><br>' +
     'Not affiliated with Letterboxd. Film metadata: this product uses the TMDB API but is not endorsed or certified by TMDB';
   return foot;
 }

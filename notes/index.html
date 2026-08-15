@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Letterboxd has no API, so I put the whole dashboard in the browser</title>
+  <meta name="description" content="Building Matinée: no API meant no server, which meant the recommender, the stats and the film-school grader all had to run in a tab. What that forces, and what it breaks.">
+  <meta property="og:title" content="Letterboxd has no API, so I put the whole dashboard in the browser">
+  <meta property="og:description" content="No API meant no server, which meant everything had to run in a tab. What that forces, and what it breaks.">
+  <meta property="og:image" content="https://deshpanda.github.io/matinee/assets/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="../assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="../assets/style.css">
+  <style>
+    .essay { max-width: 68ch; margin: 0 auto; padding: 0 22px 90px; }
+    .essay h1 {
+      font-size: clamp(1.8rem, 4.4vw, 2.6rem); font-weight: 900; line-height: 1.12;
+      letter-spacing: 0.01em; margin: 52px 0 10px;
+    }
+    .essay .dek { color: var(--muted); font-size: 1.02rem; margin: 0 0 6px; }
+    .essay .by {
+      font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.16em;
+      text-transform: uppercase; color: var(--faint); margin: 0 0 34px;
+    }
+    .essay h2 {
+      font-size: 1.12rem; font-weight: 800; letter-spacing: 0.01em;
+      margin: 40px 0 12px; color: var(--text);
+    }
+    .essay p { margin: 0 0 17px; line-height: 1.72; color: #d8d0c2; }
+    .essay li { line-height: 1.7; color: #d8d0c2; margin-bottom: 7px; }
+    .essay a { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 3px; }
+    .essay code {
+      font-family: var(--mono); font-size: 0.86em;
+      background: var(--surface-2); border: 1px solid var(--line);
+      border-radius: 3px; padding: 1px 5px;
+    }
+    .essay pre {
+      background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+      padding: 14px 16px; overflow-x: auto; margin: 0 0 18px;
+    }
+    .essay pre code { background: none; border: 0; padding: 0; font-size: 0.8rem; line-height: 1.6; }
+    .essay blockquote {
+      margin: 0 0 18px; padding: 2px 0 2px 16px; border-left: 2px solid var(--amber-dim);
+      color: var(--muted); font-style: italic;
+    }
+    .essay hr { border: 0; border-top: 1px solid var(--line); margin: 40px 0; }
+    .backlink {
+      font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.14em;
+      text-transform: uppercase; color: var(--muted); display: inline-block; margin: 26px 0 0;
+    }
+  </style>
+</head>
+<body>
+<article class="essay">
+  <h1>Letterboxd has no API, so I put the whole dashboard in the browser</h1>
+  <p class="dek">No API meant no server, which meant the stats, the recommender and a film-school grader all had to run in a tab. Here is what that forces, and what it breaks.</p>
+  <p class="by">notes on building Matinée</p>
+
+  <p>
+    Letterboxd is where a few million people keep a diary of every film they
+    watch. It has no public API. The developer programme is invite-only and
+    they are explicit that analytics use cases are not what it is for. So if
+    you want to do something with your own watch history, you have two
+    options: scrape the site, or use the export button they give you.
+  </p>
+  <p>
+    Nearly every "your Letterboxd stats" tool picks scraping. It works until
+    the markup changes, or the IP gets blocked, or someone at Letterboxd
+    sends an email. It also means a server holding other people's film
+    histories, which is a liability I did not want to own for a side project.
+  </p>
+  <p>
+    So I took the export. And once the data can only arrive as a file the
+    user hands you, a second thing follows that I did not expect to like as
+    much as I do: there is no reason for it to go anywhere else.
+  </p>
+
+  <h2>What "no server" actually means</h2>
+  <p>
+    <a href="../">Matinée</a> is a static page. You drop the ZIP that
+    Letterboxd gives you onto it, and everything after that happens in the
+    tab: unzipping, CSV parsing, about forty derived statistics, the
+    recommendation ranker, a film-school transcript, and the fetches to TMDB
+    for posters and metadata. The result is written to IndexedDB. There is no
+    account, no database, and no request that carries your diary anywhere.
+  </p>
+  <p>
+    This is not a privacy feature bolted on afterwards. It is the shape the
+    constraint forced, and it happens to be the strongest thing about the
+    product. I cannot leak what I never receive, and nobody has to believe me
+    about it: the page works with the network tab open in front of you.
+  </p>
+  <p>
+    It also made the stack decision easy in a way that feels almost like
+    cheating. The engine had to be JavaScript, because it had to run where
+    the data is. There was nothing left for a backend to do, so there is no
+    backend. Hosting is GitHub Pages. The bill is zero dollars, and it will
+    stay zero at any traffic I am likely to see.
+  </p>
+
+  <h2>The recommender, and the Nicholas Sparks incident</h2>
+  <p>
+    TMDB publishes per-film "recommendations", which are item-based
+    collaborative filtering over their users. Those are the raw candidates.
+    The interesting part is the re-ranking, because TMDB's list for a film
+    you loved is not a list for <em>you</em>.
+  </p>
+  <p>
+    Every film you rated 3.5 or above becomes a seed, weighted
+    <code>rating - 3</code>, so a five-star pushes four times harder than a
+    3.5. Each seed's recommendation list contributes to every candidate it
+    mentions, with a decay by position, because TMDB's own ordering carries
+    information:
+  </p>
+<pre><code>score += weight
+       * 1 / (1 + rank * 0.12)
+       * (tmdbRating / 10) ** 3
+       * min(1, log10(votes + 1) / 3.5)</code></pre>
+  <p>
+    That cube in the third term is there because of a specific humiliation.
+    The first version of this, with a plain linear quality term, looked at a
+    diary full of Kieślowski and Wong Kar-wai and Guru Dutt and enthusiastically
+    recommended a run of Nicholas Sparks adaptations. They were not bugs in
+    the data. They genuinely are watched by people who watch romantic dramas,
+    and at a linear weighting a 6.5 keeps 79% of the pull of an 8.2. Cubed, it
+    keeps 27%, and the shelf changed character completely.
+  </p>
+  <p>
+    The rest is unglamorous: films already in your diary are excluded by TMDB
+    id <em>and</em> by normalised title and year, so remakes of things you have
+    seen do not sneak back; a vote-count prior keeps a 7.8 from forty voters
+    out; and a final floor asks for an IMDb rating of at least 6.8 before
+    anything is shown at all. A recommendation shelf earns trust by what it
+    refuses to display.
+  </p>
+
+  <h2>Two places the seams show</h2>
+  <p>
+    <strong>Search engines rank by relevance, not by accuracy.</strong> The
+    collection needed <em>The Grey</em>, the 2011 Liam Neeson film about a
+    plane crash in Alaska. TMDB's search returns a film called
+    <em>Documenting the Grey Man</em> first, rated 2.6. My resolver took the
+    first result, so for about a day a curated list of the best winter films
+    ever made contained a 2.6-rated found-footage documentary. The fix is to
+    prefer an exact normalised-title match and only fall back to the ranking,
+    which is obvious in hindsight and was not obvious at all while writing it.
+  </p>
+  <p>
+    <strong>Some titles defeat search outright.</strong> Chantal Akerman's
+    <em>Jeanne Dielman, 23, quai du Commerce, 1080 Bruxelles</em> returns
+    nothing at all on most queries, and querying the stem before the first
+    comma returns a making-of documentary. Both of these are the same lesson:
+    if you are matching a hand-written list against someone else's catalogue,
+    the identity check has to be yours, not theirs.
+  </p>
+
+  <h2>The two things a browser genuinely cannot do</h2>
+  <p>
+    Having claimed there is no backend, I should admit there are two small
+    pieces that are not in the tab, because they physically cannot be.
+  </p>
+  <p>
+    The first is Letterboxd's public RSS feed, which the landing page reads to
+    offer a thirty-second preview from just a username. It sends no CORS
+    headers, so a browser cannot fetch it. That, plus keeping the TMDB key out
+    of the client, is a Rust worker on Cloudflare's edge: about a hundred and
+    fifty lines, stateless, and it sees anonymous "give me movie 550" lookups
+    that it cannot connect to anybody.
+  </p>
+  <p>
+    The second is IMDb. Their non-commercial dataset is a couple of hundred
+    megabytes of TSV, which is not something to hand a browser. A Go job in
+    GitHub Actions streams both files weekly, keeps films above a vote
+    threshold, and writes a 1.2 MB JSON slice keyed the way the front end keys
+    films. The browser joins against it locally, so every recommendation
+    carries a second opinion at no API cost.
+  </p>
+  <p>
+    Three languages on a side project sounds like a portfolio exercise. It is
+    not: each one is where it has to be. JavaScript because the data may not
+    leave the machine, Rust because a browser cannot read that feed, Go
+    because a browser cannot eat that dataset. Anything else would have been
+    a fourth thing to host.
+  </p>
+  <p>
+    The one honest wart: the same normalisation function that keys films
+    (lowercase, collapse non-alphanumerics, trim) now exists twice, once in
+    JavaScript and once in Go, and if they ever drift the join silently gets
+    worse rather than failing. It is commented in both places. I have no
+    better answer than vigilance.
+  </p>
+
+  <h2>The best feature has no algorithm in it</h2>
+  <p>
+    Matinée grades your diary against a hand-written film-school curriculum:
+    thirty-one courses from the silents through Slow Cinema, plus a graduate
+    year with a Hitchcock seminar, each with five films and an assignment.
+    Your ratings become the grades. You get a GPA, a standing, and dean's
+    list for any course you averaged 4.5 stars in.
+  </p>
+  <p>
+    It is the part people react to, and there is no cleverness in it at all.
+    Same with a winter collection I added later: no genre tag, keyword, or
+    embedding will ever tell you that <em>Eyes Wide Shut</em> is a Christmas
+    film, that <em>Die Hard</em> is the ur-text of the genre, or that the
+    saddest Christmas song in cinema is in <em>Meet Me in St. Louis</em>. A
+    person has to say so. The algorithmic top-up sitting behind that list
+    exists only so the collection cannot run dry.
+  </p>
+  <p>
+    I do not think this is a point about AI or recommenders being bad. It is
+    that taste is a claim somebody makes, and a product that only ever
+    aggregates has no claims in it.
+  </p>
+
+  <h2>What it cost</h2>
+  <p>
+    Zero dollars a month, which is worth stating plainly given how much of the
+    above sounds like infrastructure. GitHub Pages for the site, Cloudflare's
+    free tier for the worker, GitHub Actions for the weekly job, TMDB's free
+    key, IMDb's public dataset. The only real ongoing constraint is TMDB's
+    rate limit, which applies per caller, which is another quiet advantage of
+    doing the work in the user's browser.
+  </p>
+  <p>
+    As for whether it works: it has watched me log 296 films across 33
+    countries, and it still calls me a Freshman with a 3.13 GPA. I have
+    thought about that more than I would like.
+  </p>
+
+  <hr>
+  <p>
+    Matinée is free and open source. There is a demo on
+    <a href="../">the landing page</a> if you would rather not export
+    anything, and the code is at
+    <a href="https://github.com/deshpanda/matinee">github.com/deshpanda/matinee</a>.
+    I checked the approach with Letterboxd before building on the export and
+    the RSS feed, and they confirmed they had no issue with it. Not affiliated
+    with Letterboxd. Film metadata from TMDB, who do not endorse this.
+  </p>
+  <a class="backlink" href="../">&larr; back to Matinée</a>
+</article>
+</body>
+</html>
